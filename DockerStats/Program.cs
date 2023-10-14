@@ -1,93 +1,85 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-
-// Default Docker Engine on Windows
+﻿
+using CommandLine;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using DockerStats;
-using System.ComponentModel;
-using System.Globalization;
 using System.Runtime.InteropServices;
 
-DockerClient client = default;
+var parsedArgs = Parser.Default.ParseArguments<DockerStatsOptions>(args);
+parsedArgs.WithNotParsed(list =>
+{
+    Environment.Exit(-1);
+});
 
-if ( RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+
+if (!string.IsNullOrEmpty(parsedArgs.Value.output))
+{
+    Console.WriteLine($"Writing starts to file {parsedArgs.Value.output}"); 
+    LogUtils.SetLogOut(LogUtils.LogOutType.File, parsedArgs.Value);
+}
+
+DockerClient? client = default;
+
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 {
     client = new DockerClientConfiguration(
         new Uri("npipe://./pipe/docker_engine"))
          .CreateClient();
-}else { 
-// Default Docker Engine on Linux
-
-client = new DockerClientConfiguration(
-    new Uri("unix:///var/run/docker.sock"))
-     .CreateClient();
+}
+else
+{
+    // Default Docker Engine on Linux
+    client = new DockerClientConfiguration(
+        new Uri("unix:///var/run/docker.sock"))
+         .CreateClient();
 }
 
-Console.WriteLine($"ContainerName,CpuPercent,MemUsageInKB,MaxAviMemInKB,MemUsageInPercent,DateTime");
+// declare variable for listing containers & Getting Docker Starts
+var containerListParameters = new ContainersListParameters()
+{
+    All = true,
+    // filter for running & created containers
+    Filters = new Dictionary<string, IDictionary<string, bool>>
+    {
+        ["status"] = new Dictionary<string, bool>
+        {
+            ["running"] = true,
+            ["created"] = true
+        }
+    },
+
+};
+
+var containerStartsParams = new ContainerStatsParameters() { OneShot = true, Stream = false };
+
+// callback function to logs the receives stats from Docker Daemon
+var statsCallback = new Progress<ContainerStatsResponse>(m =>
+{
+
+    var dockerStats = Helper.ParseStats(m);
+    LogUtils.Log($"{m.Name},{dockerStats.CpuUsageInPercent:F2},{(long)dockerStats.MemoryUsageInKB},{(long)dockerStats.MemoryLimitInKB},{dockerStats.MemoryUsageInPercent:F2},{dockerStats.TimeStamp}");
+
+
+});
+
+// Write header
+LogUtils.Log($"ContainerName,CpuPercent,MemUsageInKB,MaxAviMemInKB,MemUsageInPercent,DateTime");
 while (true)
 {
-    var containers = client.Containers.ListContainersAsync(new ContainersListParameters()
-    {
-        All = true,
-        Filters = new Dictionary<string, IDictionary<string, bool>>
-        {
-            ["status"] = new Dictionary<string, bool>
-            {
-                ["running"] = true,
-                ["created"] = true
-            }
-        },
-
-    }).GetAwaiter().GetResult();
+    var containers = await client.Containers.ListContainersAsync(containerListParameters);
     foreach (var container in containers)
     {
-        //Console.WriteLine($"Name:{string.Join(",",container.Names)} container.State: {container.State}");
-        //if (container.State != "running" || container.State != "created")
-        //{
-        //    continue;
-        //}
         try
         {
-            client.Containers.GetContainerStatsAsync(container.ID, new ContainerStatsParameters() { OneShot = true, Stream = false }, new Progress<ContainerStatsResponse>(m =>
-            {
-                //if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                //{
-
-                //}
-                //else
-                {
-                    // https://github.com/docker/cli/blob/fc247d6911944b3c8dca524c93f291e5f79ec3da/cli/command/container/stats_helpers.go#L166
-                    var previousCPU = m.PreCPUStats.CPUUsage.TotalUsage;
-                    var previousSystem = m.PreCPUStats.SystemUsage;
-                    var cpuPercent = 0.0;
-                    float cpuDelta = (float)m.CPUStats.CPUUsage.TotalUsage - (float)previousCPU;
-                    float systemDelta = (float)(m.CPUStats.SystemUsage) - (float)previousSystem;
-                    float onlineCPUs = (float)(m.CPUStats.OnlineCPUs);
-                    if (onlineCPUs == 0.0)
-                    {
-                        onlineCPUs = (float)m.CPUStats.CPUUsage.PercpuUsage.Count();
-                    }
-
-
-                    if (systemDelta > 0.0 && cpuDelta > 0.0)
-                    {
-                        cpuPercent = (cpuDelta / systemDelta) * onlineCPUs * 100.0;
-                    }
-                    float memUsageInPercent = ((float)m.MemoryStats.Usage / (float)m.MemoryStats.Limit) * (float)100.0;
-
-                    //Console.WriteLine($"Name:{m.Name},CpuPercent:{cpuPercent:F2} %, MemUsage/Limit:{Bytes.GetReadableSize((long)m.MemoryStats.Usage)}/{Bytes.GetReadableSize((long)m.MemoryStats.Limit)},MemPercentage:{memUsageInPercent:F2} ");
-                    Console.WriteLine($"{m.Name},{cpuPercent:F2},{Bytes.ToKilobytes((long)m.MemoryStats.Usage)},{Bytes.ToKilobytes((long)m.MemoryStats.Limit)},{memUsageInPercent:F2},{DateTime.Now.ToString("o", CultureInfo.InvariantCulture)}");
-
-                }
-            })).GetAwaiter().GetResult();
+            await client.Containers.GetContainerStatsAsync(container.ID, containerStartsParams, statsCallback);
         }
         catch (Exception exp)
         {
-            
+            Console.WriteLine($"Exception: {exp}");
+            Environment.Exit(-1);
         }
-        
+
 
     }
-    Thread.Sleep(2000);
+    await Task.Delay((int)TimeSpan.FromSeconds((int)parsedArgs.Value.pollfrequence).TotalMilliseconds);
 }
