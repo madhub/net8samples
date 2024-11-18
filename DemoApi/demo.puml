@@ -1,0 +1,32 @@
+@startuml
+
+skinparam BoxPadding 30
+box Hospital Facility
+participant PACS as pacs
+participant EMR as emr
+participant HL7Broker as hl7broker #Orange
+participant WorkflowMgr as mgr #YellowGreen
+database SQLite as db
+box end
+box Cloud#Cyan
+participant DicomStore as dss
+box end
+
+emr ->hl7broker: publish ORU
+hl7broker -> mgr: Add cfind Task for study processing
+mgr ->db: insert task
+group#yellow Periodically read records from DB 
+mgr ->mgr: Periodically read records from DB
+mgr -> pacs : CFIND
+alt cfind success
+mgr ->dss: Submit DICOM Import Request to import a Study \n via DICOMGateway to DicomStore
+mgr ->db : Remove the cfind task
+else cfind failure
+mgr ->db : Update the record with status
+end
+end
+
+
+
+
+@enduml

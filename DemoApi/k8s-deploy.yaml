@@ -1,0 +1,103 @@
+# https://kubernetes.github.io/ingress-nginx/deploy/#quick-start
+apiVersion: v1
+kind: List
+items:
+
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: my-app-sa
+    namespace: madhu-xplor
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+     name: endpoint-reader
+     namespace: madhu-xplor
+  rules:
+   - apiGroups: ["discovery.k8s.io"]
+     resources: ["endpointslices"]
+     verbs: ["list"]
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: my-app-sa-endpoint-reader
+  subjects:
+   - kind: ServiceAccount
+     name: my-app-sa
+     namespace: madhu-xplor
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: endpoint-reader
+
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: demo-api-deployment
+    namespace: madhu-xplor
+    labels:
+      app: demo-api
+  spec:
+    replicas: 2
+    selector:
+      matchLabels:
+        app: demo-api
+    template:
+      metadata:
+        namespace: madhu-xplor
+        labels:
+          app: demo-api
+      spec:
+        serviceAccount: my-app-sa
+        containers:
+        - name: demo-api
+          image:  demoapi-server:latest
+          ports:
+          - containerPort: 80
+          imagePullPolicy: Never
+          resources:
+            requests:
+              memory: "256M"
+              cpu: "0.5"
+            limits:
+              memory: "512M"
+              cpu: "1"
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: demo-api-service
+    namespace: madhu-xplor
+  spec:
+    selector:
+      app: demo-api
+    ports:
+      - name: tcp-port
+        port: 80
+        targetPort: 80
+        protocol: TCP
+        
+- apiVersion:  networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    name: demo-api-ingress 
+    namespace: madhu-xplor
+  spec:
+    ingressClassName: nginx
+    rules:
+    - host: kubernetes.docker.internal
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: demo-api-service 
+              port:
+                number: 80
+
+# Run following command to to add to tcp-ingress
+# kubectl patch configmap tcp-services -n ingress-nginx --patch '{"data":{"4040":"default/cstoredicom-service:11112"}}'
+# Reference https://minikube.sigs.k8s.io/docs/tutorials/nginx_tcp_udp_ingress/
