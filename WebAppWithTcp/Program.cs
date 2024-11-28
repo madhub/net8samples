@@ -9,10 +9,10 @@ builder.WebHost.ConfigureKestrel(kestrelServerOptions =>
     // TCP 2025
     kestrelServerOptions.ListenAnyIP(2025, listenOption =>
     {
-        listenOption.UseConnectionLogging().  
-        UseConnectionHandler<MllpConnectionHandler>()
-        ;
-        
+        // https://learn.microsoft.com/en-us/dotnet/core/additional-tools/self-signed-certificates-guide#with-dotnet-dev-certs
+        listenOption.UseHttps (@"C:\Users\bs_ma\.aspnet\https\demoaspnetapp.pfx", "password")
+        .UseConnectionLogging().UseConnectionHandler<MllpConnectionHandler>();
+   
     });
 });
 
