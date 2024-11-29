@@ -1,0 +1,6 @@
+@KestrelTcpServerWithMinimal_HostAddress = http://localhost:5230
+
+GET {{KestrelTcpServerWithMinimal_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
