@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+        "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:h="http://xmlns.jcp.org/jsf/html"
+      xmlns:f="http://xmlns.jcp.org/jsf/core"
+      xmlns:p="http://primefaces.org/ui"
+      xmlns:b = "http://java.sun.com/jsf/composite/jsfcomponent">
+<link rel="shortcut icon" href="#{facesContext.externalContext.requestContextPath}/resources/favicon.ico"  type="image/x-icon" />
+<f:view>
+
+    <h:head>
+        <title>DICOM Route Settings</title>
+        <f:facet name="last">
+            <link rel="stylesheet" type="text/css"
+                  href="#{facesContext.externalContext.requestContextPath}/resources/css/primeflex.min.css" />
+        </f:facet>
+    </h:head>
+
+    <h:body>
+        <h:form id="dicomroute">
+            <p:growl id="growl" showDetail="true" />
+            <p:menubar>
+                <p:menuitem style="margin-right: 5px" value="Назад" outcome="adminPage" icon="pi pi-backward"/>
+                <p:menuitem style="margin-right: 5px" value="Orthanc restart" icon="pi pi-refresh" actionListener="#{dicomrouteBean.resetOrthanc}" process="@this" update="growl"/>
+                <p:divider layout="vertical"/>
+                <p:menuitem value="DICOM-route" disabled="true"/>
+
+                <f:facet name="options">
+                    <div class="p-mr-2 p-as-center">
+                        <div class="p-d-flex">
+                            <p:commandButton icon="pi pi-save"  oncomplete="PF('diskspace').show()" value="#{dataStorageBean.usedSpace}" styleClass="rounded-button ui-button-secondary ui-button-flat"/>
+                            <p:commandButton icon="pi pi-question-circle"  oncomplete="PF('about').show()" styleClass="rounded-button ui-button-secondary ui-button-flat"/>
+                            <p:commandButton icon="pi pi-sign-in"  actionListener="#{authoriseBean.logout}" styleClass="rounded-button ui-button-secondary ui-button-flat"/>
+                        </div>
+                    </div>
+                </f:facet>
+            </p:menubar>
+
+            <p:tabView id="tabview1">
+                <p:ajax event="tabChange" listener="#{dicomrouteBean.onTabChange}"/>
+
+                <p:tab title="Для обычных пользователей">
+                    <p:outputPanel>
+                        <p:toolbar>
+                            <p:toolbarGroup>
+                                <p:commandButton value="Добавить правило" immediate="true" icon="pi pi-plus" actionListener="#{dicomrouteBean.initNewRule}"
+                                                 update="dialogNewRule" oncomplete="PF('manageRule').show()"
+                                                 styleClass="ui-button-success" style="margin-right: .5rem">
+                                    <p:resetInput target="dialogNewRule"/>
+                                </p:commandButton>
+
+                                <p:commandButton value="Сохранить" styleClass="ui-button-success" update="dicomroute:growl"
+                                                 immediate="true" actionListener="#{dicomrouteBean.saveSettings}"/>
+                            </p:toolbarGroup>
+                        </p:toolbar>
+
+                        <p:dataTable id="dt-rules" widgetVar="dtRules" var="dicomrouteRule" value="#{dicomrouteBean.rules}"
+                                     reflow="true" styleClass="users-table"
+                                     emptyMessage="Нет записей для отображения"
+                                     selection="#{dicomrouteBean.rules}" rowKey="#{DicomrouteRule.name}"
+                                     rows="10" rowSelectMode="add" >
+
+                            <p:column headerText="Tag" style="text-align: center">
+                                <h:outputText value="#{dicomrouteRule.tag}" />
+                            </p:column>
+
+                            <p:column headerText="Tag Value" style="text-align: center">
+                                <h:outputText value="#{dicomrouteRule.tagValue}" />
+                            </p:column>
+
+                            <p:column headerText="Target Modality" style="text-align: center">
+                                <h:outputText value="#{dicomrouteRule.nameRemoteModality}" />
+                            </p:column>
+
+                            <p:column exportable="false">
+
+                                <p:commandButton icon="pi pi-pencil" update=":dicomroute:tabview1:manage-rule"
+                                                 oncomplete="PF('manageRule').show()" style="margin-right: 10px"
+                                                 styleClass="edit-button rounded-button ui-button-success" process="@this">
+                                    <f:setPropertyActionListener value="#{dicomrouteRule}" target="#{dicomrouteBean.selectedRule}"/>
+                                    <p:resetInput target=":dicomroute:tabview1:manage-rule"/>
+                                </p:commandButton>
+
+                                <p:commandButton class="ui-button-warning rounded-button" icon="pi pi-trash" process="@this"
+                                                 oncomplete="PF('deleteRule').show()">
+                                    <f:setPropertyActionListener value="#{dicomrouteRule}" target="#{dicomrouteBean.selectedRule}"/>
+                                </p:commandButton>
+
+                            </p:column>
+
+                        </p:dataTable>
+
+
+                        <p:dialog id="dialogNewRule" header="Новое правило:" showEffect="fade" modal="true"
+                                  widgetVar="manageRule" responsive="true">
+                            <p:panelGrid id="manage-rule" class="ui-fluid" columns="2">
+                                <p:outputLabel for="role" style="margin-right: .5rem">Тэг</p:outputLabel>
+                                <p:selectOneMenu id="role" value="#{dicomrouteBean.selectedRule.tag}">
+                                    <f:selectItem itemLabel="all" itemValue="all"/>
+                                    <f:selectItem itemLabel="Modality" itemValue="Modality"/>
+                                    <f:selectItem itemLabel="Manufacturer" itemValue="Manufacturer"/>
+                                    <f:selectItem itemLabel="StudyDescription" itemValue="StudyDescription"/>
+                                    <f:selectItem itemLabel="InstitutionName" itemValue="InstitutionName"/>
+                                    <f:selectItem itemLabel="ProductId" itemValue="ProductId"/>
+                                    <f:selectItem itemLabel="StationName" itemValue="StationName"/>
+                                </p:selectOneMenu>
+
+                                <p:outputLabel for="family" style="margin-right: .5rem">Значение</p:outputLabel>
+                                <p:inputText id="family" value="#{dicomrouteBean.selectedRule.tagValue}" />
+
+                                <p:outputLabel for="ugroup" style="margin-right: .5rem">Модальность для отправки</p:outputLabel>
+                                <p:selectOneMenu id="ugroup" value="#{dicomrouteBean.selectedRule.nameRemoteModality}" dynamic="true">
+                                    <f:selectItems value="#{dicomrouteBean.modalitiesName}"/>
+                                </p:selectOneMenu>
+
+                            </p:panelGrid>
+
+                            <f:facet name="footer">
+
+                                <p:commandButton value="Сохранить" icon="pi pi-check" actionListener="#{dicomrouteBean.addNewRule}"
+                                                 update="dialogNewRule">
+                                    <p:resetInput target="dialogNewRule"/>
+                                </p:commandButton>
+
+                                <span style="padding: 20px;">&nbsp;</span>
+
+                                <p:commandButton value="Отмена" icon="pi pi-times" oncomplete="PF('manageRule').hide()"
+                                                 class="ui-button-secondary" update="dialogNewRule">
+                                    <p:resetInput target="dialogNewRule"/>
+                                </p:commandButton>
+
+                            </f:facet>
+                        </p:dialog>
+
+                        <p:dialog widgetVar="deleteRule" showEffect="fade" width="300"
+                                  message="Удалить правило?" header="Удалить правило?" severity="warn">
+                            <p:commandButton value="Да" icon="pi pi-check" actionListener="#{dicomrouteBean.deleteRuleFromList}"
+                                             oncomplete="PF('deleteRule').hide()"/>
+                            <span style="padding: 20px;">&nbsp;</span>
+                            <p:commandButton value="Нет" type="button" styleClass="ui-button-secondary" icon="pi pi-times"
+                                             onclick="PF('deleteRule').hide()"/>
+                        </p:dialog>
+
+                    </p:outputPanel>
+                    <div class="p-d-flex"></div>
+                    <br></br>
+                    <div >Список правил автоматической маршрутизации.</div>
+                    <br></br>
+                    <div > </div>
+                </p:tab>
+
+                <p:tab title="Для продвинутых пользователей">
+
+                    <p:outputPanel>
+                        <p:toolbar>
+                            <p:toolbarGroup>
+                                <p:commandButton value="Сохранить" styleClass="ui-button-success" update="dicomroute:growl"
+                                                 immediate="true" actionListener="#{dicomrouteBean.saveSettingsCustomMode}"/>
+                            </p:toolbarGroup>
+                        </p:toolbar>
+
+                        <p:inputTextarea rows="16" cols="133" value="#{dicomrouteBean.luascripttextFile}">
+                            <p:ajax event="change" listener="#{dicomrouteBean.onInputTextChange}"/>
+                        </p:inputTextarea>
+
+                    </p:outputPanel>
+                </p:tab>
+
+            </p:tabView>
+
+            <p:dialog id="about" showEffect="fade" modal="true" widgetVar="about" responsive="true">
+                <b:about/>
+            </p:dialog>
+
+            <p:dialog id="diskspace" showEffect="fade" modal="true" widgetVar="diskspace" responsive="true">
+                <b:diskspace directory="#{dataStorageBean.directory}" totalSpace="#{dataStorageBean.totalSpace}" freeSpace="#{dataStorageBean.freeSpace}" usedSpace="#{dataStorageBean.usedSpace}"/>
+            </p:dialog>
+
+        </h:form>
+    </h:body>
+</f:view>
+</html>
