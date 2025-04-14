@@ -1,0 +1,6 @@
+@SimpleSyslogServer_HostAddress = http://localhost:5171
+
+GET {{SimpleSyslogServer_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
