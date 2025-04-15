@@ -1,0 +1,6 @@
+@OtelDemoWithApi_HostAddress = http://localhost:5054
+
+GET {{OtelDemoWithApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
